@@ -1,0 +1,106 @@
+#!/bin/bash
+
+# function ssh_key_load {
+#     local key=$1
+#     if [ -z "${key}" ] ; then
+#         select key in $(lpass ls ssh_keys | cut -d ' ' -f 1 | sed 's/ssh_keys\///' | sed '/^$/d')
+#         do
+#             break
+#         done
+#     fi
+#     lpass show --field='Private Key' ssh_keys/${key} | ssh-add - 
+# }
+
+# function _ssh_key_load {
+#     local cur
+#     COMPREPLY=()
+#     cur=${COMP_WORDS[COMP_CWORD]}
+
+#     cnt=0
+#     for i in $(lpass ls ssh_keys | cut -d ' ' -f 1 | sed 's/ssh_keys\///' | sed '/^$/d'); do
+#         if [[ $i == ${cur}* ]] ; then
+#             COMPREPLY[$cnt]=$i
+#             (( cnt++ ))
+#         fi
+#     done 
+# }
+
+# complete -F _ssh_key_load ssh_key_load
+
+# function ssh_key_import {
+#     local key=$1
+#     local name=$2
+#     if [ -z "${key}" -o -z "${name}" ] ; then
+#         echo "usage: ssh_key_import <filename> <name>"
+#         return
+#     fi
+#     if [ ! -z "$(lpass ls ssh_keys/${name})" ] ; then
+#         echo "Name: ${name} already taken."
+#         return
+#     fi
+#     echo "" | lpass add --sync=now --non-interactive --notes --note-type=ssh-key ssh_keys/${name}
+#     sleep 5
+#     cat ${key} | lpass edit --sync=now --non-interactive --field="Private Key" ssh_keys/${name}
+#     sleep 5
+#     if [ -f "${key}.pub" ] ; then
+#         cat ${key}.pub | lpass edit --sync=now --non-interactive --field="Public Key" ssh_keys/${name}
+#     fi
+# }
+
+# TODO REMOVE everything above
+#################################################################################################################################
+#BIG FAT "RED" WARNING, ONLY THE PROFILES EXISTING IN CREDENTIALS WILL BE SAVED! IF YOU HAVE SOMETHING ONLY IN CONFIG, TOO BAD.
+#################################################################################################################################
+
+#Dependencies: crudini (crudini-0.9-3.fc28.noarch) and json_xs (perl-JSON-XS-3.04-3.fc28.x86_64) [at least on Fedora]
+
+#Some globals
+AWS_CREDENTIALS_FILE="${HOME}/.aws/credentials"
+AWS_CONFIG_FILE="${HOME}/.aws/config"
+
+function lp_aws_save() {
+#This function will take the whole aws config files and save it into lastpass
+    for profile in $({ crudini --get ${AWS_CONFIG_FILE} | sed 's/profile //' ; crudini --get ${AWS_CREDENTIALS_FILE} ; } | sort -u) ; do
+        if [ "${profile}" == "default" ]; then
+            continue
+        fi
+        echo "Adding [${profile}]"
+
+        res="{"
+        
+        keys=$(crudini --get ${AWS_CREDENTIALS_FILE} ${profile} 2>/dev/null)
+        if [ $? -eq 0 ] ; then
+            res="${res} \"credentials\" : {"
+            for key in ${keys} ; do
+                res="${res}\"${key}\" : \"$(crudini --get ${AWS_CREDENTIALS_FILE} ${profile} ${key})\","
+            done
+            res="${res::-1}},"
+        else
+            echo "NOTE: ${profile} does not exists in ${AWS_CREDENTIALS_FILE}"
+        fi
+
+        keys=$(crudini --get ${AWS_CONFIG_FILE} "profile ${profile}" 2>/dev/null)
+        if [ $? -eq 0 ] ; then
+            res="${res} \"config\" : {"
+            for key in ${keys} ; do
+                res="${res}\"${key}\" : \"$(crudini --get ${AWS_CONFIG_FILE} "profile ${profile}" ${key})\","
+            done
+            res="${res::-1}},"
+        else
+            echo "NOTE: ${profile} does not exists in ${AWS_CONFIG_FILE}"
+        fi
+        res="${res::-1}}"
+        #res=$(echo $res)
+        
+        #echo ${res} | jq
+        echo ${res} | lpass edit --sync=now --non-interactive --notes aws_profiles/${profile}
+        echo
+    done
+}
+# ^^ Okay at the end of the day, this is a not so elegant INI to JSON converter
+
+function lp_aws_load() {
+#This function will load all the aws accounts from lp into the credentials file
+    echo #Lets load it in the next episode :)
+}
+
