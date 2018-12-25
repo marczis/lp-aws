@@ -101,6 +101,20 @@ function lp_aws_save() {
 
 function lp_aws_load() {
 #This function will load all the aws accounts from lp into the credentials file
-    echo #Lets load it in the next episode :)
+    for profile in $(lpass ls aws_profiles | sed 's/aws_profiles\/\([^ ]*\).*/\1/') ; do
+        echo "Processing ${profile}"
+        data=$(lpass show aws_profiles/${profile} --notes)
+        #Config part
+        for key in $(echo ${data} | jq -rc '.config | keys[]' 2>/dev/null) ; do
+            echo " - Generating config entry ($key)"
+            crudini --set ${AWS_CONFIG_FILE} "profile ${profile}" ${key} $(echo ${data} | jq -rc ".config.${key}")
+        done
+        #Credentials part
+        for key in $(echo ${data} | jq -rc '.credentials | keys[]' 2>/dev/null) ; do
+            echo " - Generating credentials entry ($key)"
+            crudini --set ${AWS_CREDENTIALS_FILE} ${profile} ${key} $(echo ${data} | jq -rc ".credentials.${key}")
+        done
+        echo
+    done
 }
 
